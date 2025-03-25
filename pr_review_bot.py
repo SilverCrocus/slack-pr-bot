@@ -29,17 +29,32 @@ client = WebClient(token=SLACK_BOT_TOKEN)
 # PR review channel
 PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "model-pr-review")
 
+# Testing mode
+TESTING_MODE = os.environ.get("TESTING_MODE", "true").lower() == "true"
+
 # Team configuration
 NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
-TEAM_MEMBERS = {
-    "Nigel": NIGEL_ID,  # Primary reviewer
-    "Member1": "U1111111111",  # Replace with actual IDs
-    "Member2": "U2222222222",
-    "Member3": "U3333333333",
-    "Member4": "U4444444444",
-    "Member5": "U5555555555",
-    "Member6": "U6666666666",
-}
+TEAM_MEMBERS = {}
+
+if TESTING_MODE:
+    # Use string names for testing
+    TEAM_MEMBERS = {
+        "Nigel": "Nigel (Test)",
+        "Sally": "Sally (Test)",
+        "John": "John (Test)",
+        "Mary": "Mary (Test)",
+    }
+else:
+    # Use real Slack IDs in production
+    TEAM_MEMBERS = {
+        "Nigel": NIGEL_ID,
+        "Member1": "U1111111111",
+        "Member2": "U2222222222",
+        "Member3": "U3333333333",
+        "Member4": "U4444444444",
+        "Member5": "U5555555555",
+        "Member6": "U6666666666",
+    }
 
 # Last selected reviewers to ensure fair rotation
 last_selected = []
@@ -66,6 +81,21 @@ def select_reviewers():
     """Select reviewers for PR review"""
     global last_selected
     
+    if TESTING_MODE:
+        # In testing mode, just use predefined reviewers
+        reviewers = [("Nigel", "Nigel (Test)")]
+        available_members = [(name, name_display) for name, name_display in TEAM_MEMBERS.items() 
+                          if name != "Nigel"]
+        
+        # Select 2 random members
+        if len(available_members) >= 2:
+            selected = random.sample(available_members, 2)
+        else:
+            selected = available_members
+            
+        return reviewers + selected
+    
+    # Normal production mode
     # Nigel is always a reviewer
     reviewers = [("Nigel", NIGEL_ID)]
     
@@ -96,24 +126,35 @@ def notify_pr_review(pr_data):
     """Notify about a new PR that needs review"""
     reviewers = select_reviewers()
     
-    # Format reviewer mentions
-    reviewer_mentions = " ".join([f"<@{user_id}>" for _, user_id in reviewers])
-    
     # Primary reviewer is always the first one (Nigel)
     primary_reviewer = reviewers[0]
     additional_reviewers = reviewers[1:]
     
-    # Construct the message
-    message = (
-        f"*New PR Needs Review:* {pr_data.get('title', 'No title provided')}\n"
-        f"*Repository:* {pr_data.get('repository', 'Unknown')}\n"
-        f"*Author:* {pr_data.get('author', 'Unknown')}\n"
-        f"*URL:* {pr_data.get('url', '#')}\n\n"
-        f"*Primary Reviewer:* <@{primary_reviewer[1]}>\n"
-        f"*Additional Reviewers (one needed):* " + 
-        " or ".join([f"<@{user_id}>" for _, user_id in additional_reviewers]) + "\n\n"
-        f"React with :{CLAIM_EMOJI}: to claim this review."
-    )
+    # Format the message based on testing mode
+    if TESTING_MODE:
+        # Testing mode - use plain text instead of tags
+        message = (
+            f"*[TEST MODE] New PR Needs Review:* {pr_data.get('title', 'No title provided')}\n"
+            f"*Repository:* {pr_data.get('repository', 'Unknown')}\n"
+            f"*Author:* {pr_data.get('author', 'Unknown')}\n"
+            f"*URL:* {pr_data.get('url', '#')}\n\n"
+            f"*Primary Reviewer:* {primary_reviewer[1]}\n"
+            f"*Additional Reviewers (one needed):* " + 
+            " or ".join([reviewer[1] for reviewer in additional_reviewers]) + "\n\n"
+            f"React with :{CLAIM_EMOJI}: to claim this review."
+        )
+    else:
+        # Normal mode with user tags
+        message = (
+            f"*New PR Needs Review:* {pr_data.get('title', 'No title provided')}\n"
+            f"*Repository:* {pr_data.get('repository', 'Unknown')}\n"
+            f"*Author:* {pr_data.get('author', 'Unknown')}\n"
+            f"*URL:* {pr_data.get('url', '#')}\n\n"
+            f"*Primary Reviewer:* <@{primary_reviewer[1]}>\n"
+            f"*Additional Reviewers (one needed):* " + 
+            " or ".join([f"<@{user_id}>" for _, user_id in additional_reviewers]) + "\n\n"
+            f"React with :{CLAIM_EMOJI}: to claim this review."
+        )
     
     # Use the specified channel if provided, otherwise use the default PR_REVIEW_CHANNEL
     channel = pr_data.get('channel', PR_REVIEW_CHANNEL)

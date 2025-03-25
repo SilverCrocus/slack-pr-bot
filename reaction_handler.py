@@ -196,7 +196,7 @@ def handle_mention(event_data):
         return {"status": "error", "reason": str(e)}
 
 # Remove the Flask app instantiation and keep only the route handler functions
-def handle_slash_command():
+def handle_pr_slash_command():
     """Handle /pr slash command for PR review assignments"""
     try:
         # Verify the request is from Slack

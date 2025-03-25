@@ -30,7 +30,7 @@ client = WebClient(token=SLACK_BOT_TOKEN)
 PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "model-pr-review")
 
 # Testing mode
-TESTING_MODE = os.environ.get("TESTING_MODE", "true").lower() == "true"
+TESTING_MODE = os.environ.get("TESTING_MODE", "true").lower() == "false"
 
 # Team configuration
 NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
@@ -48,12 +48,12 @@ else:
     # Use real Slack IDs in production
     TEAM_MEMBERS = {
         "Nigel": NIGEL_ID,
-        "Member1": "U1111111111",
-        "Member2": "U2222222222",
-        "Member3": "U3333333333",
-        "Member4": "U4444444444",
-        "Member5": "U5555555555",
-        "Member6": "U6666666666",
+        "Sally": "U048MPX0KK7",
+        "Tanvi": "U07AQFHKWJ3",
+        # "Member3": "U3333333333",
+        # "Member4": "U4444444444",
+        # "Member5": "U5555555555",
+        # "Member6": "U6666666666",
     }
 
 # Last selected reviewers to ensure fair rotation

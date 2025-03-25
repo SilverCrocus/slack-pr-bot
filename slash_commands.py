@@ -61,6 +61,8 @@ def handle_pr_command(text, user_id):
     # Get the channel ID where the command was triggered
     channel_id = request.form.get('channel_id')
     
+    logger.info(f"Handling PR command in channel: {channel_id}")
+    
     # Parse the command text - first part as URL, rest as title
     parts = text.strip().split(' ', 1)
     
@@ -77,30 +79,36 @@ def handle_pr_command(text, user_id):
     try:
         user_info = client.users_info(user=user_id)
         author = user_info['user']['name']
-    except SlackApiError:
+    except SlackApiError as e:
+        logger.error(f"Error getting user info: {str(e)}")
         author = "Unknown"
     
-    # Create the PR data
-    pr_data = {
-        'title': title,
-        'url': url,
-        'repository': 'Manual PR Request',
-        'author': author,
-        'channel': channel_id  # Add the channel ID to post directly there
-    }
-    
-    # Simply use the notify_pr_review function instead of custom logic
-    response = notify_pr_review(pr_data)
-    
-    if response and response.get('ok'):
+    # Try a direct message approach instead of using notify_pr_review
+    try:
+        logger.info(f"Posting message directly to channel {channel_id}")
+        # Post directly to the channel
+        response = client.chat_postMessage(
+            channel=channel_id,  # Use the channel ID directly
+            text=f"*New PR Needs Review:* {title}\n*URL:* {url}\n*Posted by:* <@{user_id}>"
+        )
+        
+        if response and response.get('ok'):
+            logger.info("Successfully posted message to channel")
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': 'PR review request has been posted to the channel!'
+            })
+        else:
+            logger.error(f"Failed to post message: {response}")
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': f"Failed to post PR review request: {response.get('error', 'Unknown error')}"
+            })
+    except Exception as e:
+        logger.error(f"Exception posting message: {str(e)}")
         return jsonify({
-            'response_type': 'ephemeral',  # Keep this ephemeral - it's just a confirmation
-            'text': 'PR review request has been posted to the channel!'
-        })
-    else:
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': 'Failed to post PR review request. Please try again or contact an administrator.'
+            'response_type': 'ephemeral', 
+            'text': f"Error: {str(e)}"
         })
 
 def select_reviewers_safely():

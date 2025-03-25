@@ -12,11 +12,13 @@ application = DispatcherMiddleware(Flask(__name__), {
     '/slack/commands': slash_app
 })
 
-# This app object is used by the PythonAnywhere WSGI server
+# This app object is used by the Render web service
 app = Flask(__name__)
 app.wsgi_app = application
 
-# For local development only
+# For local development only - Render will use gunicorn so this won't execute in production
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    # Get port from environment or use default
+    port = int(os.environ.get("PORT", 8080))  # Changed from 5000 to 8080 to avoid conflicts
+    print(f"Starting development server on port {port}...")
     app.run(host='0.0.0.0', port=port, debug=True)

@@ -2,7 +2,7 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from pr_review_bot import pr_webhook
+from pr_review_bot import pr_webhook, notify_pr_review
 from reaction_handler import slack_events
 from slash_commands import handle_slash_command
 from slack_sdk import WebClient
@@ -31,31 +31,9 @@ def home():
     if request.method == "HEAD" or request.method == "GET":
         return "Slack PR Bot is running!"
     elif request.method == "POST":
-        data = request.form
-        
-        # Handle slash command
-        if 'command' in data and data['command'] == '/pr':
-            # Get the channel ID and user ID
-            channel_id = data.get('channel_id')
-            user_id = data.get('user_id')
-            
-            # Acknowledge the command immediately to prevent timeout
-            # This sends the "only visible to you" message
-            
-            # Then post a visible message to the channel
-            try:
-                # Post message using the WebClient
-                response = client.chat_postMessage(
-                    channel=channel_id,
-                    text=f"<@{user_id}> requested a PR review! @channel Please review when you have a chance."
-                )
-            except SlackApiError as e:
-                # Print error to console for debugging
-                print(f"Error posting message: {e}")
-                
-            return jsonify({"response_type": "ephemeral", "text": "Processing your PR request..."})
-        
-        return jsonify({"text": "Command not recognized"})
+        # Remove the slash command handling from here since we want it
+        # to go through the dedicated route
+        return jsonify({"text": "Please use the proper slash command endpoint"})
     else:
         # Default case to ensure we always return something
         return "Method not allowed", 405

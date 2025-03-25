@@ -28,33 +28,42 @@ if not SLACK_BOT_TOKEN:
 client = WebClient(token=SLACK_BOT_TOKEN)
 
 def handle_slash_command():
-    """Handle incoming slash commands from Slack"""
-    # Verify the request came from Slack (in production, implement proper verification)
+    """Handle Slack slash commands"""
+    data = request.form
     
-    command = request.form.get('command', '')
-    text = request.form.get('text', '')
-    user_id = request.form.get('user_id', '')
+    # Debug info
+    logger.info(f"Received slash command: {data}")
     
-    logger.info(f"Received slash command: {command} with text: {text} from user: {user_id}")
+    command = data.get('command')
+    channel_id = data.get('channel_id')
+    user_id = data.get('user_id')
+    text = data.get('text', '')
     
     if command == '/pr':
-        return handle_pr_command(text, user_id)
-    elif command == '/pr-help':
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': 'PR Review Bot Commands:\n• `/pr-help` - Show this help message\n• `/pr-team` - Show current team members\n• `/pr [URL] [Title]` - Create a PR review request'
-        })
-    elif command == '/pr-team':
-        team_list = "\n".join([f"• {name}" for name in TEAM_MEMBERS.keys()])
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': f"Current PR Review Team:\n{team_list}"
-        })
-    else:
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': 'Unknown command. Try `/pr-help` for available commands.'
-        })
+        # Use the PR review bot functionality
+        pr_data = {
+            'title': text if text else 'PR Review Request',
+            'repository': 'Requested via Slack',
+            'author': f"<@{user_id}>",
+            'url': '#',
+            'channel': channel_id  # Pass the channel to notify in
+        }
+        
+        # Send immediate acknowledgement
+        response_data = {"response_type": "ephemeral", "text": "Processing your PR review request..."}
+        
+        try:
+            # Use the PR review bot to create a proper notification
+            notify_pr_review(pr_data)
+        except Exception as e:
+            logger.error(f"Error processing PR review request: {str(e)}")
+            response_data = {"response_type": "ephemeral", "text": "Error processing your request."}
+        
+        return jsonify(response_data)
+    
+    # Handle other commands here if needed
+    
+    return jsonify({"response_type": "ephemeral", "text": "Unknown command"})
 
 def handle_pr_command(text, user_id):
     """Handle the /pr command to create a new PR review request"""

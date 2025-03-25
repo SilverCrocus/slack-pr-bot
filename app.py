@@ -20,13 +20,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Add a root route handler
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def home():
-    if request.method == "GET":
+    if request.method == "HEAD" or request.method == "GET":
         return "Slack PR Bot is running!"
     elif request.method == "POST":
         # Handle your Slack POST requests here
         return jsonify({"status": "ok"})
+    else:
+        # Default case to ensure we always return something
+        return "Method not allowed", 405
 
 # Register routes
 app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])

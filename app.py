@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask
+from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from pr_review_bot import pr_webhook
 from reaction_handler import slack_events, handle_pr_slash_command
@@ -18,6 +18,15 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Add a root route handler
+@app.route("/", methods=["GET", "POST"])
+def home():
+    if request.method == "GET":
+        return "Slack PR Bot is running!"
+    elif request.method == "POST":
+        # Handle your Slack POST requests here
+        return jsonify({"status": "ok"})
 
 # Register routes
 app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])

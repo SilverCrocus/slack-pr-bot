@@ -3,8 +3,8 @@ import logging
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from pr_review_bot import pr_webhook
-from reaction_handler import slack_events, handle_pr_slash_command
-from slash_commands import handle_slash_command as handle_help_commands
+from reaction_handler import slack_events
+from slash_commands import handle_slash_command
 
 # Load environment variables
 load_dotenv()
@@ -34,8 +34,9 @@ def home():
 # Register routes
 app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])
 app.add_url_rule('/slack/events', view_func=slack_events, methods=['POST'])
-app.add_url_rule('/slack/commands', view_func=handle_pr_slash_command, methods=['POST'])
-app.add_url_rule('/slack/help-commands', view_func=handle_help_commands, methods=['POST'])
+app.add_url_rule('/slack/commands', view_func=handle_slash_command, methods=['POST'])
+# No need for a separate route for help commands
+# app.add_url_rule('/slack/help-commands', view_func=handle_help_commands, methods=['POST'])
 
 if __name__ == '__main__':
     # Get port from environment variable or use default

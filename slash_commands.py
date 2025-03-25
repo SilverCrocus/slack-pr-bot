@@ -27,7 +27,6 @@ if not SLACK_BOT_TOKEN:
 
 client = WebClient(token=SLACK_BOT_TOKEN)
 
-@app.route('/slack/commands', methods=['POST'])
 def handle_slash_command():
     """Handle incoming slash commands from Slack"""
     # Verify the request came from Slack (in production, implement proper verification)

@@ -195,10 +195,7 @@ def handle_mention(event_data):
         logger.error(f"Error processing mention: {str(e)}")
         return {"status": "error", "reason": str(e)}
 
-# Flask app for handling Slack events
-app = Flask(__name__)
-
-@app.route('/slack/commands', methods=['POST'])
+# Remove the Flask app instantiation and keep only the route handler functions
 def handle_slash_command():
     """Handle /pr slash command for PR review assignments"""
     try:
@@ -276,7 +273,6 @@ def handle_slash_command():
             "text": f"Error: {str(e)}"
         })
 
-@app.route('/slack/events', methods=['POST'])
 def slack_events():
     """Handle Slack events"""
     data = request.json
@@ -306,6 +302,3 @@ def slack_events():
                 logger.info(f"PR command handler result: {result}")
             
     return jsonify({"status": "ok"})
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5001)))

@@ -2,7 +2,7 @@ import os
 import random
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 import logging
 from dotenv import load_dotenv
 import json
@@ -18,9 +18,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
-app = Flask(__name__)
-
 # Slack configuration
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 if not SLACK_BOT_TOKEN:
@@ -33,7 +30,7 @@ client = WebClient(token=SLACK_BOT_TOKEN)
 PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "pr-reviews")
 
 # Team configuration
-NIGEL_ID = "U0123456789"  # Replace with Nigel's actual Slack user ID
+NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
 TEAM_MEMBERS = {
     "Nigel": NIGEL_ID,  # Primary reviewer
     "Member1": "U1111111111",  # Replace with actual IDs
@@ -128,7 +125,6 @@ def notify_pr_review(pr_data):
         logger.error("Failed to send PR review notification")
         return None
 
-@app.route('/webhook/pr', methods=['POST'])
 def pr_webhook():
     """Webhook endpoint to receive PR notifications"""
     try:
@@ -158,7 +154,3 @@ def pr_webhook():
 
 # Export these values and functions to be used by reaction_handler.py
 __all__ = ['select_reviewers', 'notify_pr_review', 'CLAIM_EMOJI']
-
-# Run the app
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))

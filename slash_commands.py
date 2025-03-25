@@ -58,11 +58,6 @@ def handle_slash_command():
 
 def handle_pr_command(text, user_id):
     """Handle the /pr command to create a new PR review request"""
-    # Get the channel ID where the command was triggered
-    channel_id = request.form.get('channel_id')
-    
-    logger.info(f"Handling PR command in channel: {channel_id}")
-    
     # Parse the command text - first part as URL, rest as title
     parts = text.strip().split(' ', 1)
     
@@ -79,37 +74,23 @@ def handle_pr_command(text, user_id):
     try:
         user_info = client.users_info(user=user_id)
         author = user_info['user']['name']
-    except SlackApiError as e:
-        logger.error(f"Error getting user info: {str(e)}")
+    except SlackApiError:
         author = "Unknown"
     
-    # Try a direct message approach instead of using notify_pr_review
-    try:
-        logger.info(f"Posting message directly to channel {channel_id}")
-        # Post directly to the channel
-        response = client.chat_postMessage(
-            channel=channel_id,  # Use the channel ID directly
-            text=f"*New PR Needs Review:* {title}\n*URL:* {url}\n*Posted by:* <@{user_id}>"
-        )
-        
-        if response and response.get('ok'):
-            logger.info("Successfully posted message to channel")
-            return jsonify({
-                'response_type': 'ephemeral',
-                'text': 'PR review request has been posted to the channel!'
-            })
-        else:
-            logger.error(f"Failed to post message: {response}")
-            return jsonify({
-                'response_type': 'ephemeral',
-                'text': f"Failed to post PR review request: {response.get('error', 'Unknown error')}"
-            })
-    except Exception as e:
-        logger.error(f"Exception posting message: {str(e)}")
-        return jsonify({
-            'response_type': 'ephemeral', 
-            'text': f"Error: {str(e)}"
-        })
+    # Create a simple message
+    message = (
+        f"*New PR Needs Review:* {title}\n"
+        f"*Repository:* Manual PR Request\n"
+        f"*Author:* {author}\n"
+        f"*URL:* {url}\n\n"
+        f"*Requested by:* <@{user_id}>"
+    )
+    
+    # Return a response that will be visible to everyone in the channel
+    return jsonify({
+        'response_type': 'in_channel',  # This is the key - it makes the message public
+        'text': message
+    })
 
 def select_reviewers_safely():
     """A safer version of select_reviewers that handles missing team members"""

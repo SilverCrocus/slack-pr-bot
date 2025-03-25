@@ -4,7 +4,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import logging
 from dotenv import load_dotenv
-from pr_review_bot import TEAM_MEMBERS, notify_pr_review
+from pr_review_bot import TEAM_MEMBERS, notify_pr_review, CLAIM_EMOJI
 
 # Load environment variables
 load_dotenv()
@@ -58,6 +58,9 @@ def handle_slash_command():
 
 def handle_pr_command(text, user_id):
     """Handle the /pr command to create a new PR review request"""
+    # Get the channel ID where the command was triggered
+    channel_id = request.form.get('channel_id')
+    
     # Parse the command text - first part as URL, rest as title
     parts = text.strip().split(' ', 1)
     
@@ -82,15 +85,16 @@ def handle_pr_command(text, user_id):
         'title': title,
         'url': url,
         'repository': 'Manual PR Request',
-        'author': author
+        'author': author,
+        'channel': channel_id  # Add the channel ID to post directly there
     }
     
-    # Send the notification
+    # Simply use the notify_pr_review function instead of custom logic
     response = notify_pr_review(pr_data)
     
     if response and response.get('ok'):
         return jsonify({
-            'response_type': 'ephemeral',
+            'response_type': 'ephemeral',  # Keep this ephemeral - it's just a confirmation
             'text': 'PR review request has been posted to the channel!'
         })
     else:
@@ -98,6 +102,16 @@ def handle_pr_command(text, user_id):
             'response_type': 'ephemeral',
             'text': 'Failed to post PR review request. Please try again or contact an administrator.'
         })
+
+def select_reviewers_safely():
+    """A safer version of select_reviewers that handles missing team members"""
+    try:
+        from pr_review_bot import select_reviewers, CLAIM_EMOJI
+        return select_reviewers()
+    except Exception as e:
+        logger.error(f"Error selecting reviewers: {e}")
+        # Return an empty list if there's an error
+        return []
 
 # Export the app to be used in the main application
 if __name__ == '__main__':

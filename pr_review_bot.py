@@ -27,7 +27,7 @@ if not SLACK_BOT_TOKEN:
 client = WebClient(token=SLACK_BOT_TOKEN)
 
 # PR review channel
-PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "pr-reviews")
+PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "model-pr-review")
 
 # Team configuration
 NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
@@ -115,8 +115,11 @@ def notify_pr_review(pr_data):
         f"React with :{CLAIM_EMOJI}: to claim this review."
     )
     
+    # Use the specified channel if provided, otherwise use the default PR_REVIEW_CHANNEL
+    channel = pr_data.get('channel', PR_REVIEW_CHANNEL)
+    
     # Send the message
-    response = send_slack_message(message)
+    response = send_slack_message(message, channel=channel)
     
     if response and response['ok']:
         logger.info(f"PR review notification sent, timestamp: {response['ts']}")

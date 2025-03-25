@@ -31,8 +31,14 @@ def home():
     if request.method == "HEAD" or request.method == "GET":
         return "Slack PR Bot is running!"
     elif request.method == "POST":
-        # Remove the slash command handling from here since we want it
-        # to go through the dedicated route
+        # Since your slash command URL is pointing to the root URL,
+        # we need to process the slash command here or redirect it
+        data = request.form
+        
+        if 'command' in data and data['command'] == '/pr':
+            # Forward to the slash command handler
+            return handle_slash_command()
+        
         return jsonify({"text": "Please use the proper slash command endpoint"})
     else:
         # Default case to ensure we always return something

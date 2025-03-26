@@ -40,13 +40,29 @@ def handle_slash_command():
     text = data.get('text', '')
     
     if command == '/pr':
+        # Parse the command text - first part as URL, rest as title
+        parts = text.strip().split(' ', 1)
+        
+        # Check if any text was provided
+        if not parts or not parts[0]:
+            return jsonify({
+                "response_type": "ephemeral",
+                "text": "Please provide both a URL and title. Format: `/pr [URL] [Title]`"
+            })
+            
+        url = parts[0]  # First part is the URL
+        title = parts[1] if len(parts) > 1 else 'PR Review Request'
+        
+        # Log the parsed values
+        logger.info(f"Parsed URL: {url}, Title: {title}")
+        
         # Use the PR review bot functionality
         pr_data = {
-            'title': text if text else 'PR Review Request',
-            'repository': 'Requested via Slack',
+            'title': title,
+            'repository': title,  # Use title as repository name
             'author': f"<@{user_id}>",
-            'url': '#',
-            'channel': channel_id  # Pass the channel to notify in
+            'url': url,  # This should be the actual URL now
+            'channel': channel_id
         }
         
         # Send immediate acknowledgement
@@ -57,7 +73,7 @@ def handle_slash_command():
             notify_pr_review(pr_data)
         except Exception as e:
             logger.error(f"Error processing PR review request: {str(e)}")
-            response_data = {"response_type": "ephemeral", "text": "Error processing your request."}
+            response_data = {"response_type": "ephemeral", "text": f"Error processing your request: {str(e)}"}
         
         return jsonify(response_data)
     

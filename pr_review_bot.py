@@ -135,6 +135,9 @@ def notify_pr_review(pr_data):
     url = pr_data.get('url', '#')
     title = pr_data.get('title', 'No title provided')
     
+    # Log values for debugging
+    logger.info(f"Creating PR review notification with URL: {url}, Title: {title}")
+    
     # Format the message based on testing mode
     if TESTING_MODE:
         # Testing mode - use plain text instead of tags

@@ -78,7 +78,7 @@ def send_slack_message(text, channel=PR_REVIEW_CHANNEL, username='PR Review Bot'
         logger.error(f"Failed to send Slack message: {e.response['error']}")
         return None
 
-def select_reviewers():
+def select_reviewers(author_id=None):
     """Select reviewers for PR review"""
     global last_selected
     
@@ -86,7 +86,7 @@ def select_reviewers():
         # In testing mode, just use predefined reviewers
         reviewers = [("Nigel", "Nigel (Test)")]
         available_members = [(name, name_display) for name, name_display in TEAM_MEMBERS.items() 
-                          if name != "Nigel"]
+                          if name != "Nigel" and name_display != author_id]
         
         # Select 2 random members
         if len(available_members) >= 2:
@@ -100,9 +100,9 @@ def select_reviewers():
     # Nigel is always a reviewer
     reviewers = [("Nigel", NIGEL_ID)]
     
-    # Get all team members except Nigel
+    # Get all team members except Nigel and the author
     available_members = [(name, user_id) for name, user_id in TEAM_MEMBERS.items() 
-                        if name != "Nigel" and user_id != NIGEL_ID]
+                        if name != "Nigel" and user_id != NIGEL_ID and user_id != author_id]
     
     # Prioritize members who haven't been selected recently
     not_recently_selected = [member for member in available_members 
@@ -125,7 +125,16 @@ def select_reviewers():
 
 def notify_pr_review(pr_data):
     """Notify about a new PR that needs review"""
-    reviewers = select_reviewers()
+    # Extract author ID if present
+    author = pr_data.get('author', 'Unknown')
+    author_id = None
+    
+    # If author is in the format "<@USER_ID>", extract the USER_ID
+    if author.startswith('<@') and author.endswith('>'):
+        author_id = author[2:-1]  # Remove "<@" and ">"
+    
+    # Select reviewers excluding the author
+    reviewers = select_reviewers(author_id)
     
     # Primary reviewer is always the first one (Nigel)
     primary_reviewer = reviewers[0]

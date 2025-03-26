@@ -117,11 +117,11 @@ def handle_pr_command(text, user_id):
         'text': message
     })
 
-def select_reviewers_safely():
+def select_reviewers_safely(author_id=None):
     """A safer version of select_reviewers that handles missing team members"""
     try:
         from pr_review_bot import select_reviewers, CLAIM_EMOJI
-        return select_reviewers()
+        return select_reviewers(author_id)
     except Exception as e:
         logger.error(f"Error selecting reviewers: {e}")
         # Return an empty list if there's an error

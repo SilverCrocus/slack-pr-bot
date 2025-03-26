@@ -170,8 +170,8 @@ def handle_mention(event_data):
         if user_info['ok']:
             requester_name = user_info['user'].get('real_name', user_info['user'].get('name', 'Unknown User'))
         
-        # Select reviewers
-        reviewers = select_reviewers()
+        # Select reviewers - pass the author's user_id to exclude them from selection
+        reviewers = select_reviewers(user_id)
         
         # Primary reviewer is always the first one (Nigel)
         primary_reviewer = reviewers[0]

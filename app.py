@@ -46,7 +46,13 @@ def home():
 
 # Register routes
 app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])
-app.add_url_rule('/slack/events', view_func=slack_events, methods=['POST'])
+
+@app.route('/slack/events', methods=['POST'])
+def events_endpoint():
+    """Wrapper for slack_events to add more logging"""
+    logger.info(f"Received event at /slack/events with data: {request.data}")
+    return slack_events()
+
 app.add_url_rule('/slack/commands', view_func=handle_slash_command, methods=['POST'])
 # No need for a separate route for help commands
 # app.add_url_rule('/slack/help-commands', view_func=handle_help_commands, methods=['POST'])

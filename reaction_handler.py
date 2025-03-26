@@ -1,9 +1,14 @@
 import os
 import logging
+import json
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from pr_review_bot import select_reviewers, CLAIM_EMOJI
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -14,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 # Slack configuration from environment variables
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+if not SLACK_BOT_TOKEN:
+    logger.error("SLACK_BOT_TOKEN not found in environment variables")
+    raise ValueError("SLACK_BOT_TOKEN must be set")
+
 NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
 PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "pr-reviews")
 CLAIM_EMOJI = "white_check_mark"
@@ -197,108 +206,107 @@ def handle_mention(event_data):
 
 # Remove the Flask app instantiation and keep only the route handler functions
 def handle_pr_slash_command():
-    """Handle /pr slash command for PR review assignments"""
-    try:
-        # Verify the request is from Slack
-        # In production, you should verify the request signature using SLACK_SIGNING_SECRET
-        
-        # Get command data
-        command = request.form.get('command')
-        text = request.form.get('text', '')
-        user_id = request.form.get('user_id')
-        channel_id = request.form.get('channel_id')
-        
-        # Verify this is the /pr command
-        if command != '/pr':
-            return jsonify({"text": "Invalid command"})
-            
-        # Parse the command: /pr URL Title
-        parts = text.strip().split(' ', 1)  # Split into URL and title
-        if len(parts) < 2:
-            return jsonify({
-                "response_type": "ephemeral",
-                "text": "Error: Please use the format `/pr URL Title`"
-            })
-            
-        url = parts[0]
-        title = parts[1]
-        
-        # Get user info of the requester
-        user_info = client.users_info(user=user_id)
-        requester_name = "Unknown User"
-        if user_info['ok']:
-            requester_name = user_info['user'].get('real_name', user_info['user'].get('name', 'Unknown User'))
-        
-        # Select reviewers
-        reviewers = select_reviewers()
-        
-        # Primary reviewer is always the first one (Nigel)
-        primary_reviewer = reviewers[0]
-        additional_reviewers = reviewers[1:]
-        
-        # Construct the message
-        message = (
-            f"*New PR Needs Review:* {title}\n"
-            f"*Repository:* Manual Request\n"
-            f"*Author:* {requester_name}\n"
-            f"*URL:* {url}\n\n"
-            f"*Primary Reviewer:* <@{primary_reviewer[1]}>\n"
-            f"*Additional Reviewers (one needed):* " + 
-            " or ".join([f"<@{user_id}>" for _, user_id in additional_reviewers]) + "\n\n"
-            f"React with :{CLAIM_EMOJI}: to claim this review."
-        )
-        
-        # Send the message to the channel where command was issued
-        response = client.chat_postMessage(
-            channel=channel_id,
-            text=message
-        )
-        
-        if response['ok']:
-            # Return an ephemeral response to the user that submitted the command
-            return jsonify({
-                "response_type": "ephemeral",
-                "text": "PR review request created successfully!"
-            })
-        else:
-            return jsonify({
-                "response_type": "ephemeral",
-                "text": "Failed to create PR review request."
-            })
-            
-    except Exception as e:
-        logger.error(f"Error processing slash command: {str(e)}")
-        return jsonify({
-            "response_type": "ephemeral",
-            "text": f"Error: {str(e)}"
-        })
+    """This is just a placeholder function that redirects to the main slash command handler"""
+    from slash_commands import handle_slash_command
+    return handle_slash_command()
 
 def slack_events():
-    """Handle Slack events"""
-    data = request.json
+    """Handle Slack events including reactions"""
+    # First, print the raw request data for debugging
+    logger.info(f"Raw request data: {request.data}")
     
-    # Verify Slack URL challenge
-    if data.get('type') == 'url_verification':
-        return jsonify({"challenge": data.get('challenge')})
-        
-    # Handle events
-    if data.get('type') == 'event_callback':
-        event = data.get('event', {})
-        
-        # Handle reaction_added event
-        if event.get('type') == 'reaction_added':
-            result = handle_reaction(event)
-            logger.info(f"Reaction handler result: {result}")
-        
-        # Handle bot mentions
-        elif event.get('type') == 'app_mention':
-            result = handle_mention(event)
-            logger.info(f"Mention handler result: {result}")
+    try:
+        # Try to parse the request body as JSON
+        if request.data:
+            payload = json.loads(request.data.decode('utf-8'))
+            logger.info(f"Received event payload: {payload}")
             
-        # Keep the text command handler as a fallback
-        elif event.get('type') == 'message' and not event.get('subtype'):
-            if event.get('text', '').startswith('-pr '):
-                result = handle_pr_command(event)
-                logger.info(f"PR command handler result: {result}")
+            # Handle URL verification challenge
+            if payload.get('type') == 'url_verification':
+                challenge = payload.get('challenge')
+                logger.info(f"Received URL verification challenge: {challenge}")
+                
+                # Return the exact challenge value in the expected format
+                return Response(
+                    json.dumps({"challenge": challenge}),
+                    mimetype='application/json'
+                )
             
-    return jsonify({"status": "ok"})
+            # Handle reaction events
+            event = payload.get('event', {})
+            if event.get('type') == 'reaction_added':
+                logger.info(f"Processing reaction event: {event}")
+                handle_reaction(event)
+            
+            # Always return a 200 OK for events
+            return jsonify({"status": "ok"})
+        else:
+            logger.error("No data received in request")
+            return jsonify({"error": "No data received"})
+    
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON: {e}")
+        return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
+    
+    except Exception as e:
+        logger.error(f"Error processing event: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+def handle_reaction(event):
+    """Handle the reaction event"""
+    reaction = event.get('reaction')
+    
+    # Check if this is the claim emoji
+    if reaction == CLAIM_EMOJI:
+        user_id = event.get('user')
+        item = event.get('item', {})
+        channel = item.get('channel')
+        ts = item.get('ts')
+        
+        if not (channel and ts and user_id):
+            logger.error("Missing required reaction event data")
+            return
+        
+        try:
+            # Get the message that was reacted to
+            message_response = client.conversations_history(
+                channel=channel,
+                inclusive=True,
+                oldest=ts,
+                latest=ts,
+                limit=1
+            )
+            
+            if not message_response['ok'] or not message_response['messages']:
+                logger.error("Failed to fetch message or no messages found")
+                return
+            
+            message = message_response['messages'][0]
+            
+            # Check if this is a PR review message (contains the claim emoji message)
+            if "React with :" + CLAIM_EMOJI + ": to claim this review." in message.get('text', ''):
+                # Update the message to show this person is reviewing
+                updated_text = message['text'].split("*Primary Reviewer:*")[0]
+                updated_text += f"*PR is being reviewed by:* <@{user_id}>\n\n"
+                updated_text += "This PR review has been claimed."
+                
+                client.chat_update(
+                    channel=channel,
+                    ts=ts,
+                    text=updated_text
+                )
+                logger.info(f"Updated PR review message with reviewer: <@{user_id}>")
+                
+                # Add a follow-up message to indicate who claimed it
+                client.chat_postMessage(
+                    channel=channel,
+                    thread_ts=ts,
+                    text=f"<@{user_id}> has claimed this PR review!"
+                )
+        
+        except SlackApiError as e:
+            logger.error(f"Error handling reaction: {e}")
+
+# If this file is run directly
+if __name__ == "__main__":
+    print("This module is meant to be imported, not executed directly.")

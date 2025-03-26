@@ -50,6 +50,7 @@ else:
         "Nigel": NIGEL_ID,
         "Sally": "U048MPX0KK7",
         "Tanvi": "U07AQFHKWJ3",
+        "Hivin": "U07B1GFGSF7"
         # "Member3": "U3333333333",
         # "Member4": "U4444444444",
         # "Member5": "U5555555555",

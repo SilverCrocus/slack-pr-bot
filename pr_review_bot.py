@@ -131,14 +131,18 @@ def notify_pr_review(pr_data):
     primary_reviewer = reviewers[0]
     additional_reviewers = reviewers[1:]
     
+    # Get the URL and title
+    url = pr_data.get('url', '#')
+    title = pr_data.get('title', 'No title provided')
+    
     # Format the message based on testing mode
     if TESTING_MODE:
         # Testing mode - use plain text instead of tags
         message = (
-            f"*[TEST MODE] New PR Needs Review:* {pr_data.get('title', 'No title provided')}\n"
-            f"*Repository:* {pr_data.get('repository', 'Unknown')}\n"
+            f"*New PR Needs Review*\n"
+            f"*Repository:* {title}\n"
             f"*Author:* {pr_data.get('author', 'Unknown')}\n"
-            f"*URL:* {pr_data.get('url', '#')}\n\n"
+            f"*URL:* {url}\n\n"
             f"*Primary Reviewer:* {primary_reviewer[1]}\n"
             f"*Additional Reviewers (one needed):* " + 
             " or ".join([reviewer[1] for reviewer in additional_reviewers]) + "\n\n"
@@ -147,10 +151,10 @@ def notify_pr_review(pr_data):
     else:
         # Normal mode with user tags
         message = (
-            f"*New PR Needs Review:* {pr_data.get('title', 'No title provided')}\n"
-            f"*Repository:* {pr_data.get('repository', 'Unknown')}\n"
+            f"*New PR Needs Review*\n"
+            f"*Repository:* {title}\n"
             f"*Author:* {pr_data.get('author', 'Unknown')}\n"
-            f"*URL:* {pr_data.get('url', '#')}\n\n"
+            f"*URL:* {url}\n\n"
             f"*Primary Reviewer:* <@{primary_reviewer[1]}>\n"
             f"*Additional Reviewers (one needed):* " + 
             " or ".join([f"<@{user_id}>" for _, user_id in additional_reviewers]) + "\n\n"

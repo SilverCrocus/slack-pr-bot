@@ -218,35 +218,33 @@ def slack_events():
     try:
         # Try to parse the request body as JSON
         if request.data:
-            payload = json.loads(request.data.decode('utf-8'))
-            logger.info(f"Received event payload: {payload}")
-            
-            # Handle URL verification challenge
-            if payload.get('type') == 'url_verification':
-                challenge = payload.get('challenge')
-                logger.info(f"Received URL verification challenge: {challenge}")
+            try:
+                payload = json.loads(request.data.decode('utf-8'))
+                logger.info(f"Received event payload: {payload}")
                 
-                # Return the exact challenge value in the expected format
-                return Response(
-                    json.dumps({"challenge": challenge}),
-                    mimetype='application/json'
-                )
-            
-            # Handle reaction events
-            event = payload.get('event', {})
-            if event.get('type') == 'reaction_added':
-                logger.info(f"Processing reaction event: {event}")
-                handle_reaction(event)
-            
-            # Always return a 200 OK for events
-            return jsonify({"status": "ok"})
+                # Handle URL verification challenge
+                if payload.get('type') == 'url_verification':
+                    challenge = payload.get('challenge')
+                    logger.info(f"Received URL verification challenge: {challenge}")
+                    
+                    # Return the exact challenge value in the expected format
+                    # This is critical for Slack API validation
+                    return {"challenge": challenge}
+                
+                # Handle reaction events
+                event = payload.get('event', {})
+                if event.get('type') == 'reaction_added':
+                    logger.info(f"Processing reaction event: {event}")
+                    handle_reaction(event)
+                
+                # Always return a 200 OK for events
+                return jsonify({"status": "ok"})
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
         else:
             logger.error("No data received in request")
             return jsonify({"error": "No data received"})
-    
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON: {e}")
-        return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
     
     except Exception as e:
         logger.error(f"Error processing event: {str(e)}", exc_info=True)

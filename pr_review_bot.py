@@ -7,6 +7,8 @@ import logging
 from dotenv import load_dotenv
 import json
 import traceback
+import hmac
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -186,27 +188,89 @@ def notify_pr_review(pr_data):
         logger.error("Failed to send PR review notification")
         return None
 
+# GitHub webhook secret
+GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET")
+
+def verify_github_webhook(request_data, signature_header):
+    """Verify that the webhook request came from GitHub"""
+    if not GITHUB_WEBHOOK_SECRET:
+        logger.warning("GITHUB_WEBHOOK_SECRET not configured, skipping verification")
+        return True
+        
+    if not signature_header:
+        logger.warning("No X-Hub-Signature-256 header in request")
+        return False
+        
+    # Compute the HMAC signature
+    expected_signature = 'sha256=' + hmac.new(
+        GITHUB_WEBHOOK_SECRET.encode(),
+        request_data,
+        hashlib.sha256
+    ).hexdigest()
+    
+    # Compare signatures
+    return hmac.compare_digest(signature_header, expected_signature)
+
 def pr_webhook():
     """Webhook endpoint to receive PR notifications"""
     try:
+        # Log headers for debugging
+        logger.info(f"Headers: {dict(request.headers)}")
+        
+        # Get the event type
+        event_type = request.headers.get('X-GitHub-Event')
+        logger.info(f"GitHub Event Type: {event_type}")
+        
+        # Get the signature
+        signature = request.headers.get('X-Hub-Signature-256')
+        
+        # Verify webhook if signature is provided
+        if signature and not verify_github_webhook(request.data, signature):
+            logger.error("Invalid GitHub webhook signature")
+            return jsonify({"status": "error", "message": "Invalid signature"}), 403
+        
         data = request.json
-        logger.info(f"Received webhook: {data}")
+        logger.info(f"Received webhook payload: {data}")
         
-        # Process the PR data
-        pr_data = {
-            'title': data.get('pull_request', {}).get('title', 'No title provided'),
-            'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-            'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
-            'url': data.get('pull_request', {}).get('html_url', '#')
-        }
+        # Different event types have different payload structures
+        pr_data = {}
         
-        # Notify about the PR
-        response = notify_pr_review(pr_data)
-        
-        if response and response['ok']:
-            return jsonify({"status": "success", "message": "PR notification sent"}), 200
+        if event_type == 'pull_request':
+            # Handle pull_request event
+            if data.get('action') == 'opened' or data.get('action') == 'reopened':
+                pr_data = {
+                    'title': data.get('pull_request', {}).get('title', 'No title provided'),
+                    'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
+                    'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+                    'url': data.get('pull_request', {}).get('html_url', '#')
+                }
+            else:
+                # Not an event we care about
+                return jsonify({"status": "skipped", "message": f"Ignoring pull_request action: {data.get('action')}"}), 200
+                
+        elif event_type == 'pull_request_review':
+            # Handle pull_request_review event
+            pr_data = {
+                'title': data.get('pull_request', {}).get('title', 'No title provided'),
+                'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
+                'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+                'url': data.get('pull_request', {}).get('html_url', '#'),
+                'reviewer': data.get('review', {}).get('user', {}).get('login', 'Unknown')
+            }
         else:
-            return jsonify({"status": "error", "message": "Failed to send PR notification"}), 500
+            return jsonify({"status": "error", "message": f"Unsupported event type: {event_type}"}), 400
+        
+        # Only proceed if we have valid PR data
+        if pr_data:
+            # Notify about the PR
+            response = notify_pr_review(pr_data)
+            
+            if response and response['ok']:
+                return jsonify({"status": "success", "message": "PR notification sent"}), 200
+            else:
+                return jsonify({"status": "error", "message": "Failed to send PR notification"}), 500
+        else:
+            return jsonify({"status": "skipped", "message": "No PR data to process"}), 200
     
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}")

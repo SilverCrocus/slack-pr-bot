@@ -1,5 +1,7 @@
 import os
 import random
+import hmac
+import hashlib
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from flask import request, jsonify
@@ -62,6 +64,9 @@ last_selected = []
 
 # Emoji that indicates claiming a review
 CLAIM_EMOJI = "white_check_mark"
+
+# GitHub webhook secret for verification
+GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
 
 def send_slack_message(text, channel=PR_REVIEW_CHANNEL, username='PR Review Bot', icon_emoji=':robot_face:'):
     """Send a message to Slack channel"""
@@ -186,17 +191,56 @@ def notify_pr_review(pr_data):
         logger.error("Failed to send PR review notification")
         return None
 
+def verify_github_signature(request_data, signature_header):
+    """Verify that the webhook request came from GitHub by checking the signature"""
+    if not GITHUB_WEBHOOK_SECRET:
+        logger.warning("GITHUB_WEBHOOK_SECRET not set, skipping webhook signature verification")
+        return True
+        
+    if not signature_header:
+        logger.error("No X-Hub-Signature-256 header in request")
+        return False
+        
+    # Get expected signature
+    expected_signature = "sha256=" + hmac.new(
+        GITHUB_WEBHOOK_SECRET.encode('utf-8'),
+        request_data,
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(signature_header, expected_signature)
+
 def pr_webhook():
-    """Webhook endpoint to receive PR notifications"""
+    """Webhook endpoint to receive PR notifications from GitHub"""
     try:
+        # Get the signature header
+        signature_header = request.headers.get('X-Hub-Signature-256')
+        
+        # Verify the webhook signature if secret is set
+        if GITHUB_WEBHOOK_SECRET:
+            if not verify_github_signature(request.data, signature_header):
+                logger.error("Invalid webhook signature")
+                return jsonify({"status": "error", "message": "Invalid signature"}), 401
+        
+        # Get the event type
+        event_type = request.headers.get('X-GitHub-Event')
+        
+        # Only process pull_request events
+        if event_type != 'pull_request':
+            return jsonify({"status": "ignored", "message": f"Event type {event_type} ignored"}), 200
+        
         data = request.json
-        logger.info(f"Received webhook: {data}")
+        logger.info(f"Received GitHub webhook: {event_type} action={data.get('action')}")
+        
+        # Only process when PRs are opened or reopened
+        if data.get('action') not in ['opened', 'reopened']:
+            return jsonify({"status": "ignored", "message": f"PR action {data.get('action')} ignored"}), 200
         
         # Process the PR data
         pr_data = {
-            'title': data.get('pull_request', {}).get('title', 'No title provided'),
+            'title': data.get('repository', {}).get('full_name', 'Unknown repository'),
             'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-            'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+            'author': f"<@{data.get('pull_request', {}).get('user', {}).get('login', 'Unknown')}>",
             'url': data.get('pull_request', {}).get('html_url', '#')
         }
         

@@ -35,8 +35,18 @@ PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "model-pr-review")
 TESTING_MODE = os.environ.get("TESTING_MODE", "true").lower() == "false"
 
 # Team configuration
-NIGEL_ID = os.environ.get("NIGEL_ID", "U0123456789")
+NIGEL_ID = os.environ.get("NIGEL_ID", "UR78CM4LX")
 TEAM_MEMBERS = {}
+
+# GitHub username to Slack user ID mapping
+GITHUB_TO_SLACK = {
+    "diyagamah": "U07B1GFGSF7",  # Hivin
+    "khert": "U07AQFHKWJ3",  # Tanvi
+    "mortimerme": "UE8MRHUV8",  # Melinda
+    "glascottl": "UPK3LK5EX",  # Lachlan
+    "huisi": "U07B1GFGSF7",  # Sally
+    "chinnn": "UR78CM4LX", # Nigel
+}
 
 if TESTING_MODE:
     # Use string names for testing
@@ -55,8 +65,6 @@ else:
         "Hivin": "U07B1GFGSF7",
         "Melinda": "UE8MRHUV8",
         "Lachlan": "UPK3LK5EX",
-        # "Member5": "U5555555555",
-        # "Member6": "U6666666666",
     }
 
 # Last selected reviewers to ensure fair rotation
@@ -127,15 +135,14 @@ def select_reviewers(author_id=None):
 
 def notify_pr_review(pr_data):
     """Notify about a new PR that needs review"""
-    # Extract author ID if present
+    # Use mapped Slack ID if available, otherwise use the author name
     author = pr_data.get('author', 'Unknown')
-    author_id = None
+    author_id = pr_data.get('author_slack_id')  # This can be None if no mapping exists
     
-    # If author is in the format "<@USER_ID>", extract the USER_ID
-    if author.startswith('<@') and author.endswith('>'):
-        author_id = author[2:-1]  # Remove "<@" and ">"
+    # Log the author information
+    logger.info(f"PR Author: GitHub username={author}, Slack ID={author_id}")
     
-    # Select reviewers excluding the author
+    # Select reviewers excluding the author's Slack ID
     reviewers = select_reviewers(author_id)
     
     # Primary reviewer is always the first one (Nigel)
@@ -235,13 +242,23 @@ def pr_webhook():
         # Different event types have different payload structures
         pr_data = {}
         
+        # Extract GitHub username for author
+        github_author = None
+        
         if event_type == 'pull_request':
             # Handle pull_request event
             if data.get('action') == 'opened' or data.get('action') == 'reopened':
+                github_author = data.get('pull_request', {}).get('user', {}).get('login')
+                
+                # Map GitHub username to Slack ID if possible
+                slack_author = GITHUB_TO_SLACK.get(github_author)
+                logger.info(f"Mapped GitHub author {github_author} to Slack ID {slack_author}")
+                
                 pr_data = {
                     'title': data.get('pull_request', {}).get('title', 'No title provided'),
                     'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-                    'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+                    'author': github_author,
+                    'author_slack_id': slack_author,  # This is the key change
                     'url': data.get('pull_request', {}).get('html_url', '#')
                 }
             else:
@@ -250,10 +267,17 @@ def pr_webhook():
                 
         elif event_type == 'pull_request_review':
             # Handle pull_request_review event
+            github_author = data.get('pull_request', {}).get('user', {}).get('login')
+            
+            # Map GitHub username to Slack ID if possible
+            slack_author = GITHUB_TO_SLACK.get(github_author)
+            logger.info(f"Mapped GitHub author {github_author} to Slack ID {slack_author}")
+            
             pr_data = {
                 'title': data.get('pull_request', {}).get('title', 'No title provided'),
                 'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-                'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+                'author': github_author,
+                'author_slack_id': slack_author,
                 'url': data.get('pull_request', {}).get('html_url', '#'),
                 'reviewer': data.get('review', {}).get('user', {}).get('login', 'Unknown')
             }

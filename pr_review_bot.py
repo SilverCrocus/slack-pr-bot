@@ -1,7 +1,5 @@
 import os
 import random
-import hmac
-import hashlib
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from flask import request, jsonify
@@ -64,9 +62,6 @@ last_selected = []
 
 # Emoji that indicates claiming a review
 CLAIM_EMOJI = "white_check_mark"
-
-# GitHub webhook secret for verification
-GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
 
 def send_slack_message(text, channel=PR_REVIEW_CHANNEL, username='PR Review Bot', icon_emoji=':robot_face:'):
     """Send a message to Slack channel"""
@@ -191,117 +186,32 @@ def notify_pr_review(pr_data):
         logger.error("Failed to send PR review notification")
         return None
 
-def verify_github_signature(request_data, signature_header):
-    """Verify that the webhook request came from GitHub by checking the signature"""
-    if not GITHUB_WEBHOOK_SECRET:
-        logger.warning("GITHUB_WEBHOOK_SECRET not set, skipping webhook signature verification")
-        return True
-        
-    if not signature_header:
-        logger.error("No X-Hub-Signature-256 header in request")
-        return False
-        
-    # Get expected signature
-    expected_signature = "sha256=" + hmac.new(
-        GITHUB_WEBHOOK_SECRET.encode('utf-8'),
-        request_data,
-        hashlib.sha256
-    ).hexdigest()
-    
-    return hmac.compare_digest(signature_header, expected_signature)
-
 def pr_webhook():
-    """Webhook endpoint to receive PR notifications from GitHub"""
-    # Handle GET requests for browser testing
-    if request.method == 'GET':
-        return jsonify({
-            "status": "ok", 
-            "message": "GitHub webhook endpoint is active. This endpoint accepts POST requests from GitHub webhook events."
-        }), 200
-    
-    # Continue handling POST requests as before
+    """Webhook endpoint to receive PR notifications"""
     try:
-        # Log ALL incoming data for complete debugging
-        logger.info(f"Received webhook request at /webhook/pr")
-        logger.info(f"Headers: {dict(request.headers)}")
-        logger.info(f"Raw request data: {request.data}")
+        data = request.json
+        logger.info(f"Received webhook: {data}")
         
-        # Check if we're getting JSON data
-        is_json = request.is_json
-        logger.info(f"Request contains JSON: {is_json}")
+        # Process the PR data
+        pr_data = {
+            'title': data.get('pull_request', {}).get('title', 'No title provided'),
+            'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
+            'author': data.get('pull_request', {}).get('user', {}).get('login', 'Unknown'),
+            'url': data.get('pull_request', {}).get('html_url', '#')
+        }
         
-        # Try to parse JSON, with fallback
-        try:
-            if is_json:
-                data = request.json
-            else:
-                logger.warning("Request not in JSON format, attempting to parse body as JSON")
-                data = json.loads(request.data.decode('utf-8'))
-            
-            # Log full parsed data for debugging
-            logger.info(f"Full webhook data: {json.dumps(data)}")
-            logger.info(f"Event action: {data.get('action', 'unknown')}")
-        except Exception as json_error:
-            logger.error(f"Failed to parse JSON: {str(json_error)}")
-            # Still return 200 to GitHub to prevent retries
-            return jsonify({"status": "error", "message": "Invalid JSON payload, but acknowledged"}), 200
+        # Notify about the PR
+        response = notify_pr_review(pr_data)
         
-        # Accept ANY webhook for debugging - we'll process everything and see what works
-        try:
-            # For now, try to extract PR data from any webhook to see what's available
-            event_type = request.headers.get('X-GitHub-Event', 'unknown')
-            logger.info(f"GitHub event type: {event_type}")
-            
-            # Process pull_request events (most common type)
-            if event_type == 'pull_request':
-                pr_data = {
-                    'title': data.get('repository', {}).get('full_name', 'Unknown repository'),
-                    'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-                    'author': f"<@{data.get('pull_request', {}).get('user', {}).get('login', 'Unknown')}>",
-                    'url': data.get('pull_request', {}).get('html_url', '#')
-                }
-            # Process ping events (sent when webhook is first set up)
-            elif event_type == 'ping':
-                return jsonify({"status": "success", "message": "Ping received successfully!"}), 200
-            # Try to handle other event types as well
-            else:
-                # Generic handler for other events
-                pr_data = {
-                    'title': f"GitHub {event_type} event in " + 
-                            data.get('repository', {}).get('full_name', 'Unknown repository'),
-                    'repository': data.get('repository', {}).get('full_name', 'Unknown repository'),
-                    'author': 'GitHub Webhook',
-                    'url': data.get('repository', {}).get('html_url', '#')
-                }
-            
-            logger.info(f"Processed data for notification: {pr_data}")
-            
-            # Temporarily limit notifications to specific events for testing
-            if event_type == 'pull_request':
-                # Notify about the PR
-                response = notify_pr_review(pr_data)
-                
-                if response and response.get('ok'):
-                    return jsonify({"status": "success", "message": "PR notification sent"}), 200
-                else:
-                    logger.error(f"Failed to send notification: {response}")
-                    # Still return 200 to GitHub
-                    return jsonify({"status": "error", "message": "Failed to send PR notification, but acknowledged"}), 200
-            else:
-                logger.info(f"Skipping notification for {event_type} event")
-                return jsonify({"status": "success", "message": f"{event_type} event received and logged"}), 200
-            
-        except Exception as extract_error:
-            logger.error(f"Error processing webhook data: {str(extract_error)}")
-            logger.error(traceback.format_exc())
-            # Still return 200 to GitHub
-            return jsonify({"status": "error", "message": f"Error processing, but acknowledged: {str(extract_error)}"}), 200
+        if response and response['ok']:
+            return jsonify({"status": "success", "message": "PR notification sent"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Failed to send PR notification"}), 500
     
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}")
         logger.error(traceback.format_exc())
-        # Still return 200 to GitHub to prevent retries
-        return jsonify({"status": "error", "message": f"Server error, but acknowledged: {str(e)}"}), 200
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # Export these values and functions to be used by reaction_handler.py
 __all__ = ['select_reviewers', 'notify_pr_review', 'CLAIM_EMOJI']

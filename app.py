@@ -44,29 +44,8 @@ def home():
         # Default case to ensure we always return something
         return "Method not allowed", 405
 
-# Add a test endpoint for webhook debugging
-@app.route('/webhook/test', methods=['GET', 'POST'])
-def webhook_test():
-    """Test endpoint for webhook debugging"""
-    if request.method == 'GET':
-        return jsonify({"status": "ok", "message": "Webhook test endpoint is working"}), 200
-    elif request.method == 'POST':
-        logger.info(f"Received test webhook POST with headers: {dict(request.headers)}")
-        logger.info(f"Request data: {request.data}")
-        
-        try:
-            if request.is_json:
-                data = request.json
-                logger.info(f"JSON data: {data}")
-            else:
-                logger.info(f"Raw data (not JSON): {request.data}")
-        except Exception as e:
-            logger.error(f"Error parsing request: {str(e)}")
-        
-        return jsonify({"status": "success", "message": "Test webhook received"}), 200
-
 # Register routes
-app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['GET', 'POST'])
+app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])
 
 @app.route('/slack/events', methods=['POST'])
 def events_endpoint():

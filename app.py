@@ -66,7 +66,7 @@ def webhook_test():
         return jsonify({"status": "success", "message": "Test webhook received"}), 200
 
 # Register routes
-app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['POST'])
+app.add_url_rule('/webhook/pr', view_func=pr_webhook, methods=['GET', 'POST'])
 
 @app.route('/slack/events', methods=['POST'])
 def events_endpoint():

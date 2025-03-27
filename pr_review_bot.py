@@ -34,8 +34,8 @@ PR_REVIEW_CHANNEL = os.environ.get("PR_REVIEW_CHANNEL", "model-pr-review")
 # Testing mode
 TESTING_MODE = os.environ.get("TESTING_MODE", "true").lower() == "false"
 
-# Team configuration
-NIGEL_ID = os.environ.get("NIGEL_ID", "UR78CM4LX")
+# Team configuration - Hard-coded Nigel ID as requested
+NIGEL_ID = "UR78CM4LX"
 TEAM_MEMBERS = {}
 
 # GitHub username to Slack user ID mapping
@@ -44,7 +44,7 @@ GITHUB_TO_SLACK = {
     "khert": "U07AQFHKWJ3",  # Tanvi
     "mortimerme": "UE8MRHUV8",  # Melinda
     "glascottl": "UPK3LK5EX",  # Lachlan
-    "huisi": "U07B1GFGSF7",  # Sally
+    "huisi": "U048MPX0KK7",  # Sally
     "chinnn": "UR78CM4LX", # Nigel
 }
 
@@ -156,13 +156,18 @@ def notify_pr_review(pr_data):
     # Log values for debugging
     logger.info(f"Creating PR review notification with URL: {url}, Title: {title}")
     
+    # Format author display - use Slack tag if ID is available
+    author_display = author
+    if author_id:
+        author_display = f"<@{author_id}>"
+    
     # Format the message based on testing mode
     if TESTING_MODE:
         # Testing mode - use plain text instead of tags
         message = (
             f"*New PR Needs Review*\n"
-            f"*Repository:* {title}\n"
-            f"*Author:* {pr_data.get('author', 'Unknown')}\n"
+            f"*Title:* {title}\n"
+            f"*Author:* {author_display}\n"
             f"*URL:* {url}\n\n"
             f"*Primary Reviewer:* {primary_reviewer[1]}\n"
             f"*Additional Reviewers (one needed):* " + 
@@ -173,8 +178,8 @@ def notify_pr_review(pr_data):
         # Normal mode with user tags
         message = (
             f"*New PR Needs Review*\n"
-            f"*Repository:* {title}\n"
-            f"*Author:* {pr_data.get('author', 'Unknown')}\n"
+            f"*Title:* {title}\n"
+            f"*Author:* {author_display}\n"
             f"*URL:* {url}\n\n"
             f"*Primary Reviewer:* <@{primary_reviewer[1]}>\n"
             f"*Additional Reviewers (one needed):* " + 
